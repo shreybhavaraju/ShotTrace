@@ -1,0 +1,6 @@
+raw_videos/
+trimmed/
+keypoints/
+*.MOV
+*.npy
+*.task
