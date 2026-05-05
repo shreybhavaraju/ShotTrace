@@ -58,24 +58,30 @@ def extract_frame_keypoints(detector, frame_bgr):
 
 
 def normalize_keypoints(keypoints):
-    # Center on shoulder midpoint, scale by shoulder width — this removes
-    # camera-distance and body-size differences so shots are comparable.
+    # Center on shoulder midpoint, scale by shoulder width — removes camera-distance
+    # and body-size differences so shots are comparable.
+    #
+    # Use a single per-shot reference (median over high-visibility frames) instead of
+    # normalizing each frame independently. Per-frame normalization explodes whenever
+    # MediaPipe places the shoulders near-coincident on a single frame: dividing by a
+    # tiny width produces coordinates in the hundreds, which then dominate any .max()-
+    # style feature downstream.
+    visible = (keypoints[:, LEFT_SHOULDER,  2] > 0.5) & \
+              (keypoints[:, RIGHT_SHOULDER, 2] > 0.5)
+    if visible.sum() < 3:
+        return keypoints  # not enough good frames; eda.py's visibility filter will drop this shot
+
+    good = keypoints[visible]
+    ls = np.median(good[:, LEFT_SHOULDER,  :2], axis=0)
+    rs = np.median(good[:, RIGHT_SHOULDER, :2], axis=0)
+    center = (ls + rs) / 2.0
+    width  = np.linalg.norm(rs - ls)
+
+    if width < 0.02:  # shoulders coincident across the whole shot — unfixable, leave raw
+        return keypoints
+
     normalized = keypoints.copy()
-    for i in range(keypoints.shape[0]):
-        frame = keypoints[i]
-        ls, rs = frame[LEFT_SHOULDER, :2], frame[RIGHT_SHOULDER, :2]
-
-        # If shoulders weren't reliably detected, leave the frame as-is rather
-        # than dividing by a garbage scale and corrupting the rest of the points.
-        if frame[LEFT_SHOULDER, 2] < 0.3 or frame[RIGHT_SHOULDER, 2] < 0.3:
-            continue
-
-        center = (ls + rs) / 2.0
-        width = np.linalg.norm(rs - ls)
-        if width < 1e-6:
-            continue
-
-        normalized[i, :, :2] = (frame[:, :2] - center) / width
+    normalized[:, :, :2] = (keypoints[:, :, :2] - center) / width
     return normalized
 
 
