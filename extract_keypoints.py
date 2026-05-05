@@ -77,7 +77,7 @@ def normalize_keypoints(keypoints):
     center = (ls + rs) / 2.0
     width  = np.linalg.norm(rs - ls)
 
-    if width < 0.02:  # shoulders coincident across the whole shot — unfixable, leave raw
+    if width < 0.005:  # truly degenerate shoulders (shooter offscreen / pose collapse) — leave raw
         return keypoints
 
     normalized = keypoints.copy()
