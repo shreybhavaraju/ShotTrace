@@ -50,7 +50,7 @@ for ax, metric, title, label in [
         ax.text(m + s + 0.005, i, f'{m:.3f}', va='center', fontsize=9)
 
 # One legend for the figure
-handles = [plt.Rectangle((0, 0), 1, 1, color=c, edgecolor='black') for c in family_colors.values()]
+handles = [plt.Rectangle((0, 0), 1, 1, facecolor=c, edgecolor='black') for c in family_colors.values()]
 fig.legend(handles, family_colors.keys(),
            loc='lower center', ncol=4, bbox_to_anchor=(0.5, -0.02))
 plt.suptitle('Model comparison — 5-fold cross-validated results across all experiments',

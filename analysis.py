@@ -12,7 +12,6 @@ from pathlib import Path
 KEYPOINTS_DIR = Path('keypoints')
 FEATURES      = Path('trimmed/features.csv')
 TEMPLATE_OUT  = Path('trimmed/good_shot_template.npy')
-DISTANCES_OUT = Path('trimmed/distances.csv')
 FIGS          = Path('figs')
 FIGS.mkdir(exist_ok=True)
 
@@ -46,11 +45,6 @@ np.save(TEMPLATE_OUT, template)
 flat = kps.reshape(len(df), -1)
 flat_template = template.reshape(-1)
 distances = np.linalg.norm(flat - flat_template, axis=1)
-df['distance_to_template'] = distances
-
-# Save filename → distance for later feature use (baseline could pick this up if we
-# merge it into features.csv later)
-df[['filename', 'label_int', 'shot_index', 'distance_to_template']].to_csv(DISTANCES_OUT, index=False)
 
 print(f"loaded {len(df)} shots  ({make_mask.sum()} makes, {miss_mask.sum()} misses)")
 print(f"template built from {make_mask.sum()} made shots → {TEMPLATE_OUT}")
@@ -90,4 +84,3 @@ plt.savefig(FIGS / 'template_distance_drift.png', dpi=120)
 plt.close()
 
 print(f"figure saved to {FIGS}/template_distance_drift.png")
-print(f"per-shot distances saved to {DISTANCES_OUT}")
