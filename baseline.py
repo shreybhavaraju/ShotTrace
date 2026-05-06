@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split, cross_val_score, Stratifie
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.metrics import (
     accuracy_score, roc_auc_score, confusion_matrix, classification_report,
 )
@@ -22,7 +22,11 @@ FIGS.mkdir(exist_ok=True)
 
 FEATURE_COLS = ['max_elbow_extension', 'release_frame_est',
                 'peak_wrist_height',  'peak_wrist_frame',
-                'drive_amplitude',    'follow_through_x']
+                'drive_amplitude',    'follow_through_x',
+                'left_max_elbow_ext', 'guide_hand_asymmetry',
+                'max_wrist_velocity', 'max_arm_whip_speed',
+                'release_to_peak_lag', 'wrist_above_head',
+                'shoulder_tilt_at_peak', 'post_release_drop']
 
 df = pd.read_csv(FEATURES)
 X = df[FEATURE_COLS].values
@@ -62,15 +66,19 @@ lr = Pipeline([
     ('lr',    LogisticRegression(max_iter=1000, random_state=SEED)),
 ])
 rf = RandomForestClassifier(n_estimators=200, random_state=SEED)
+# Gradient boosting often beats RF on small, structured tabular data — it handles
+# noisy/non-informative features better via additive shallow trees instead of bagging.
+gb = GradientBoostingClassifier(n_estimators=200, max_depth=3, random_state=SEED)
 
 lr_res = evaluate('logistic regression', lr)
 rf_res = evaluate('random forest',       rf)
+gb_res = evaluate('gradient boosting',   gb)
 
 # 5-fold cross-validation — single 80/20 split has ~±0.075 SE on AUC at this sample size,
 # so any one split is mostly noise. CV gives a stable estimate to actually decide on.
 print("=== 5-fold cross-validation (full dataset) ===")
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
-for name, model in [('logistic regression', lr), ('random forest', rf)]:
+for name, model in [('logistic regression', lr), ('random forest', rf), ('gradient boosting', gb)]:
     acc = cross_val_score(model, X, y, cv=cv, scoring='accuracy')
     auc = cross_val_score(model, X, y, cv=cv, scoring='roc_auc')
     print(f"  {name}:")
@@ -78,9 +86,9 @@ for name, model in [('logistic regression', lr), ('random forest', rf)]:
     print(f"    AUC:      {auc.mean():.3f} ± {auc.std():.3f}   per-fold: {[f'{a:.2f}' for a in auc]}")
 print()
 
-# Use whichever model has better AUC for the visualizations
-better_name, better = ('random forest', rf_res) if rf_res['auc'] >= lr_res['auc'] \
-                      else ('logistic regression', lr_res)
+# Use whichever model has best AUC for the visualizations
+all_results = [('logistic regression', lr_res), ('random forest', rf_res), ('gradient boosting', gb_res)]
+better_name, better = max(all_results, key=lambda kv: kv[1]['auc'])
 
 
 # Confusion matrix figure

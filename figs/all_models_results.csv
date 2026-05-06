@@ -1,0 +1,5 @@
+model,family,n_shots,auc_mean,auc_std,acc_mean,acc_std
+Logistic regression,baseline,222,0.436,0.039,0.446,0.026
+Random forest,baseline,222,0.459,0.052,0.496,0.047
+Gradient boosting,baseline,222,0.52,0.055,0.518,0.047
+1D CNN (aligned),sequence,222,0.596,0.092,0.608,0.058
