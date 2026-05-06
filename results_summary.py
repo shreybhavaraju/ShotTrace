@@ -43,7 +43,7 @@ for ax, metric, title, label in [
     ax.barh(df['model'], means, xerr=stds, color=colors, edgecolor='black',
             capsize=4, error_kw={'linewidth': 1.2})
     ax.axvline(0.5, color='gray', linestyle='--', label='chance', alpha=0.7)
-    ax.set_xlim(0.4, 0.65)
+    ax.set_xlim(0.4, 0.80)
     ax.set_xlabel(f'mean {label} (±1 std across 5 folds)')
     ax.set_title(title)
     for i, (m, s) in enumerate(zip(means, stds)):

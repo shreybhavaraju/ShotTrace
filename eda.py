@@ -87,30 +87,8 @@ plt.savefig(FIGS_DIR / '02_rolling_make_rate.png', dpi=120)
 plt.close()
 
 
-# 3. Right wrist & elbow trajectories overlaid — makes vs misses.
-# y is flipped so up on the screen is up on the body (image y goes down).
 make_mask = manifest_clean['label_int'].values == 1
 miss_mask = ~make_mask
-
-def plot_traj(ax, kps, joint, color, label):
-    for shot in kps:
-        ax.plot(shot[:, joint, 0], -shot[:, joint, 1], color=color, alpha=0.05)
-    mean = kps[:, :, joint, :2].mean(axis=0)
-    ax.plot(mean[:, 0], -mean[:, 1], color=color, linewidth=2.5, label=f'{label} (mean)')
-
-fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-for ax, joint, name in zip(axes, [RWRI, RELB], ['Right wrist', 'Right elbow']):
-    plot_traj(ax, kps_clean[make_mask], joint, 'green', 'make')
-    plot_traj(ax, kps_clean[miss_mask], joint, 'red', 'miss')
-    ax.set_title(f'{name} trajectory  (frames 0→29)')
-    ax.set_xlabel('x  (shoulder widths from midpoint)')
-    ax.set_ylabel('y  (up positive)')
-    ax.axhline(0, color='gray', linewidth=0.5)
-    ax.axvline(0, color='gray', linewidth=0.5)
-    ax.legend()
-plt.tight_layout()
-plt.savefig(FIGS_DIR / '03_trajectories.png', dpi=120)
-plt.close()
 
 
 # 4. Elbow angle at release. Coaches cue full extension (~170°) at release;
