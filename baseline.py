@@ -5,7 +5,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
@@ -51,14 +53,34 @@ def evaluate(name, model):
     }
 
 
-lr_model = LogisticRegression(max_iter=1000, random_state=SEED)
-rf_model = RandomForestClassifier(n_estimators=200, random_state=SEED)
+# Logistic regression gets a StandardScaler in front because the engineered features
+# live on wildly different scales (degrees, shoulder-widths, frame index 0-29) — without
+# scaling, the largest-scale feature would dominate the loss surface. Random forest
+# is scale-invariant so it doesn't need this.
+lr = Pipeline([
+    ('scale', StandardScaler()),
+    ('lr',    LogisticRegression(max_iter=1000, random_state=SEED)),
+])
+rf = RandomForestClassifier(n_estimators=200, random_state=SEED)
 
-lr = evaluate('logistic regression', lr_model)
-rf = evaluate('random forest',       rf_model)
+lr_res = evaluate('logistic regression', lr)
+rf_res = evaluate('random forest',       rf)
 
-# Use the better-AUC model for the confusion / calibration plots
-better_name, better = ('random forest', rf) if rf['auc'] >= lr['auc'] else ('logistic regression', lr)
+# 5-fold cross-validation — single 80/20 split has ~±0.075 SE on AUC at this sample size,
+# so any one split is mostly noise. CV gives a stable estimate to actually decide on.
+print("=== 5-fold cross-validation (full dataset) ===")
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
+for name, model in [('logistic regression', lr), ('random forest', rf)]:
+    acc = cross_val_score(model, X, y, cv=cv, scoring='accuracy')
+    auc = cross_val_score(model, X, y, cv=cv, scoring='roc_auc')
+    print(f"  {name}:")
+    print(f"    accuracy: {acc.mean():.3f} ± {acc.std():.3f}   per-fold: {[f'{a:.2f}' for a in acc]}")
+    print(f"    AUC:      {auc.mean():.3f} ± {auc.std():.3f}   per-fold: {[f'{a:.2f}' for a in auc]}")
+print()
+
+# Use whichever model has better AUC for the visualizations
+better_name, better = ('random forest', rf_res) if rf_res['auc'] >= lr_res['auc'] \
+                      else ('logistic regression', lr_res)
 
 
 # Confusion matrix figure
@@ -80,9 +102,10 @@ plt.savefig(FIGS / 'baseline_confusion.png', dpi=120)
 plt.close()
 
 
-# Feature importance — RF only. LR coefficients on unscaled features aren't directly comparable
-# across features that live on wildly different scales (degrees vs shoulder-widths vs frame index).
-importances = pd.Series(rf_model.feature_importances_, index=FEATURE_COLS).sort_values()
+# Feature importance — random forest only. Logistic regression coefficients on
+# StandardScaler-transformed features are technically comparable, but RF's importance
+# is more straightforward to explain and more robust to feature correlation.
+importances = pd.Series(rf.feature_importances_, index=FEATURE_COLS).sort_values()
 plt.figure(figsize=(8, 4))
 importances.plot.barh(color='steelblue', edgecolor='black')
 plt.xlabel('importance')
@@ -94,8 +117,9 @@ print("feature importances (random forest, descending):")
 print(importances.sort_values(ascending=False).round(3))
 
 
-# Calibration plot — quantile strategy (equal-sample bins) because the test set is only ~60 shots
-# and uniform bins tend to leave bins empty.
+# Calibration: are the model's confidence numbers actually meaningful?
+# Quantile binning (equal samples per bin) is stabler than uniform on a ~56-shot test set
+# where uniform bins often end up empty.
 prob_true, prob_pred = calibration_curve(y_test, better['proba'], n_bins=5, strategy='quantile')
 
 plt.figure(figsize=(6, 5))
