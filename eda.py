@@ -134,39 +134,6 @@ plt.savefig(FIGS_DIR / '04_elbow_angle.png', dpi=120)
 plt.close()
 
 
-# 5. Make rate by session. No explicit session field, but each session was
-# filmed in one continuous run, so a big jump in IMG numbering means a new day.
-GAP_THRESHOLD = 20  # leaves room for skipped clips within a session
-diffs = manifest_clean['img_num'].diff().fillna(0)
-manifest_clean['session'] = (diffs > GAP_THRESHOLD).cumsum()
-
-session_stats = manifest_clean.groupby('session').agg(
-    shots=('label_int', 'count'),
-    makes=('label_int', 'sum'),
-    make_rate=('label_int', 'mean'),
-    first_img=('img_num', 'min'),
-    last_img=('img_num', 'max'),
-).reset_index()
-print('\n' + session_stats.to_string(index=False))
-
-fig, ax = plt.subplots(figsize=(10, 4))
-ax.bar(session_stats['session'], session_stats['make_rate'],
-       color='steelblue', edgecolor='black')
-ax.axhline(manifest_clean['label_int'].mean(), color='gray', linestyle='--',
-           label=f'overall = {manifest_clean["label_int"].mean():.2f}')
-for _, row in session_stats.iterrows():
-    ax.text(row['session'], row['make_rate'] + 0.02, f"n={row['shots']}",
-            ha='center', fontsize=9)
-ax.set_xlabel('Session')
-ax.set_ylabel('Make rate')
-ax.set_ylim(0, 1)
-ax.set_title('Make rate by session')
-ax.legend()
-plt.tight_layout()
-plt.savefig(FIGS_DIR / '05_make_rate_by_session.png', dpi=120)
-plt.close()
-
-
 # Save cleaned manifest with engineered columns for later steps
 manifest_clean.to_csv('trimmed/manifest_clean.csv', index=False)
 print(f"\nsaved manifest_clean.csv ({len(manifest_clean)} rows)")

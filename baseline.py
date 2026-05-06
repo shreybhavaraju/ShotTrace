@@ -13,7 +13,6 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.metrics import (
     accuracy_score, roc_auc_score, confusion_matrix, classification_report,
 )
-from sklearn.calibration import calibration_curve
 
 SEED = 42
 FEATURES = Path('trimmed/features.csv')
@@ -86,30 +85,6 @@ for name, model in [('logistic regression', lr), ('random forest', rf), ('gradie
     print(f"    AUC:      {auc.mean():.3f} ± {auc.std():.3f}   per-fold: {[f'{a:.2f}' for a in auc]}")
 print()
 
-# Use whichever model has best AUC for the visualizations
-all_results = [('logistic regression', lr_res), ('random forest', rf_res), ('gradient boosting', gb_res)]
-better_name, better = max(all_results, key=lambda kv: kv[1]['auc'])
-
-
-# Confusion matrix figure
-cm = confusion_matrix(y_test, better['pred'])
-fig, ax = plt.subplots(figsize=(5, 4))
-im = ax.imshow(cm, cmap='Blues')
-for i in range(2):
-    for j in range(2):
-        ax.text(j, i, str(cm[i, j]), ha='center', va='center', fontsize=14)
-ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
-ax.set_xticklabels(['miss', 'make'])
-ax.set_yticklabels(['miss', 'make'])
-ax.set_xlabel('predicted')
-ax.set_ylabel('true')
-ax.set_title(f'Confusion matrix — {better_name}')
-plt.colorbar(im, ax=ax)
-plt.tight_layout()
-plt.savefig(FIGS / 'baseline_confusion.png', dpi=120)
-plt.close()
-
-
 # Feature importance — random forest only. Logistic regression coefficients on
 # StandardScaler-transformed features are technically comparable, but RF's importance
 # is more straightforward to explain and more robust to feature correlation.
@@ -124,22 +99,4 @@ plt.close()
 print("feature importances (random forest, descending):")
 print(importances.sort_values(ascending=False).round(3))
 
-
-# Calibration: are the model's confidence numbers actually meaningful?
-# Quantile binning (equal samples per bin) is stabler than uniform on a ~56-shot test set
-# where uniform bins often end up empty.
-prob_true, prob_pred = calibration_curve(y_test, better['proba'], n_bins=5, strategy='quantile')
-
-plt.figure(figsize=(6, 5))
-plt.plot([0, 1], [0, 1], '--', color='gray', label='perfect calibration')
-plt.plot(prob_pred, prob_true, marker='o', linewidth=2, label=better_name)
-plt.xlabel('predicted make probability')
-plt.ylabel('actual make rate')
-plt.xlim(0, 1); plt.ylim(0, 1)
-plt.title('Calibration')
-plt.legend()
-plt.tight_layout()
-plt.savefig(FIGS / 'baseline_calibration.png', dpi=120)
-plt.close()
-
-print(f"\nfigures saved to {FIGS}/")
+print(f"\nfigure saved to {FIGS}/baseline_feature_importance.png")

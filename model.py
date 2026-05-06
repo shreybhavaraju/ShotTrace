@@ -15,7 +15,7 @@ from sklearn.metrics import roc_auc_score
 
 SEED = 42
 KEYPOINTS_DIR = Path('keypoints')
-FEATURES = Path('trimmed/features.csv')   # uses the same 278-shot set as baseline
+FEATURES = Path('trimmed/features.csv')   # 222 shots after the outlier filter
 MODEL_PATH = Path('model.pt')
 FIGS = Path('figs')
 FIGS.mkdir(exist_ok=True)
