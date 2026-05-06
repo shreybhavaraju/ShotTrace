@@ -73,6 +73,25 @@ class ShotDataset(Dataset):
 RELEASE_TARGET_FRAME = 15   # frame index where peak elbow extension lands after alignment
 
 
+def mirror_flip(X):
+    # Mirror each shot about the y-axis: negate x coords and swap left/right joints.
+    # The shooter is right-handed, so the flipped shot is a synthetic left-handed one
+    # with the same make/miss label — bilateral symmetry means doubling the dataset
+    # this way is free training data. Channel layout per frame (36 ch): positions live
+    # in [0..17] as 9 joints × (x, y) interleaved, velocities in [18..35] same layout.
+    JOINT_SWAPS = [(1, 2), (3, 4), (5, 6), (7, 8)]   # L↔R for shoulder, elbow, wrist, hip
+    flipped = X.copy()
+    for offset in (0, 18):
+        for l, r in JOINT_SWAPS:
+            l_x, l_y = offset + l*2, offset + l*2 + 1
+            r_x, r_y = offset + r*2, offset + r*2 + 1
+            flipped[:, :, [l_x, l_y, r_x, r_y]] = X[:, :, [r_x, r_y, l_x, l_y]]
+    # Negate every x channel (even indices) across both positions and velocities
+    x_channels = list(range(0, 36, 2))
+    flipped[:, :, x_channels] *= -1
+    return flipped
+
+
 def realign_to_release(X, release_frames, target=RELEASE_TARGET_FRAME):
     # Shift each shot so peak elbow extension lands at the same time index. Different
     # shots have release at different positions in the original window (motion-peak
@@ -113,6 +132,11 @@ def load_data():
 
 
 def train_fold(X_train, y_train, X_test, y_test):
+    # Double the training fold with mirror-flipped copies. Test fold stays untouched
+    # so we evaluate on real shots only.
+    X_train = np.concatenate([X_train, mirror_flip(X_train)], axis=0)
+    y_train = np.concatenate([y_train, y_train], axis=0)
+
     train_loader = DataLoader(
         ShotDataset(X_train, y_train, augment=True),
         batch_size=BATCH_SIZE, shuffle=True,
