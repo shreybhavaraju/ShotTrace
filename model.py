@@ -109,12 +109,39 @@ def realign_to_release(X, release_frames, target=RELEASE_TARGET_FRAME):
     return aligned
 
 
+def replace_failed_frames(raw_kps, threshold=0.3):
+    # MediaPipe stores failed detections as (x=0, y=0, vis=0). Letting those zero
+    # pulses through forces the CNN to learn around a "wrist teleports to origin"
+    # artifact. For each joint independently, linearly interpolate the (x, y) over
+    # frames where vis < threshold, and edge-fill at the boundaries. If a joint has
+    # no valid frames in the entire shot (e.g. left arm fully occluded), leave it
+    # at (0, 0) — there's nothing to interpolate from.
+    cleaned = raw_kps[:, :, :, :2].copy()
+    bad = raw_kps[:, :, :, 2] < threshold
+    T = cleaned.shape[1]
+    n_fixed = 0
+    for i in range(cleaned.shape[0]):
+        for j in range(cleaned.shape[2]):
+            n_bad = int(bad[i, :, j].sum())
+            if n_bad == 0 or n_bad == T:
+                continue
+            for c in range(2):
+                s = pd.Series(np.where(bad[i, :, j], np.nan, cleaned[i, :, j, c]))
+                s = s.interpolate(limit_direction='both')
+                cleaned[i, :, j, c] = s.values
+            n_fixed += n_bad
+    return cleaned, n_fixed
+
+
 def load_data():
     feat_df = pd.read_csv(FEATURES)
-    positions = np.stack([
-        np.load(KEYPOINTS_DIR / fn)[:, :, :2]   # drop visibility channel
-        for fn in feat_df['filename']
-    ])
+    raw_kps = np.stack([
+        np.load(KEYPOINTS_DIR / fn) for fn in feat_df['filename']
+    ])   # (N, 30, 9, 3) — keep visibility briefly for the cleanup step
+
+    positions, n_fixed = replace_failed_frames(raw_kps)
+    total = raw_kps.shape[0] * raw_kps.shape[1] * raw_kps.shape[2]
+    print(f"  cleaned {n_fixed} failed-detection joint-frames out of {total} ({n_fixed/total:.1%})")
     positions = positions.reshape(positions.shape[0], 30, 18)
 
     # Velocity = frame-to-frame delta. Captures speed of motion, which the engineered
